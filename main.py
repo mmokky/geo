@@ -607,11 +607,10 @@ def print_tacheometry_table(st_idx):
     w_H = 7
     w_coord = 8
 
-    # Собираем шапку таблицы (все бэкслэши убраны)
     header = (
         f"{pad('№ Пик.', w_id)} | "
         f"{pad('Описание', w_note)} | "
-        f"{pad('D`' (м)', w_d)} | "
+        f"{pad('D` (м)', w_d)} | "
         f"{pad('β (Гориз)', w_ang)} | "
         f"{pad('КЛ', w_ang)} | "
         f"{pad('ν (с МО)', w_ang)} | "
