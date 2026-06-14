@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*' # Сборка и релиз будут запускаться только при создании тега версии (например, v1.1.0)
 
+# ГЛОБАЛЬНЫЕ ПРАВА: Разрешаем GitHub Actions создавать и изменять релизы
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build on ${{ matrix.os }}
@@ -56,24 +60,23 @@ jobs:
     - name: Generate SHA-256 Hash
       run: ${{ matrix.hash_command }}
 
-    # Загружаем собранные бинарники и текстовые файлы с хэшами в GitHub Releases
+    # Загружаем файлы в релиз. Параметр fail_on_unmatched_files выключен, 
+    # чтобы Mac не ругался на отсутствие чексумы от Windows и наоборот.
     - name: Create and Upload to GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
           ${{ matrix.output_path }}
-          dist/checksum_*.txt
+          dist/checksum_windows.txt
+          dist/checksum_macos.txt
+        fail_on_unmatched_files: false
         body: |
-          ## Официальные хэши безопасности сборки (${{ matrix.os }}):
+          ## Официальные хэши безопасности сборки:
           
           Релиз сгенерирован автоматически. Проверьте контрольную сумму скачанного файла, чтобы убедиться в его оригинальности.
           
+          * **ОС:** ${{ matrix.os }}
           * **Файл:** `${{ matrix.output_name }}`
-          * **SHA-256 Хэш:** 
-```text
-          ${{ env.HASH }}
-          ```
-
-> ⚠️ **Примечание:** Из-за отсутствия коммерческой цифровой подписи операционные системы (Windows SmartScreen или macOS Gatekeeper) могут выдать предупреждение при первом запуске. Это нормально для независимых open-source проектов.
-env:
-GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          * **SHA-256 Хэш:** `${{ env.HASH }}`
+          
+          > ⚠️ **Примечание:** Из-за отсутствия коммерческой цифровой подписи операционные системы (Windows SmartScreen или macOS Gatekeeper) могут выдать предупреждение при первом запуске. Это нормально для независимых open-source проектов.
