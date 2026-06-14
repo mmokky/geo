@@ -20,7 +20,7 @@ file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(mes
 logger.addHandler(file_handler)
 
 console_handler = logging.StreamHandler()
-console_handler.setFormatter(logging.Formatter('%(message)s'))
+console_handler.setFormatter(logging.Formatter('%message)s'))
 logger.addHandler(console_handler)
 
 def log_and_print(message):
@@ -93,7 +93,6 @@ def parse_angle(prompt, instrument, default_val=None):
             raw_input = input("Введите через пробел (Градусы Минуты Секунды) или 'б' для отмены: ").strip()
             
             if raw_input.lower() in ['б', 'назад', 'cancel']:
-                clear_screen()
                 return None
             if not raw_input:
                 if default_val is not None:
@@ -276,6 +275,7 @@ def menu_height_traverse():
         print("  2 - Удалить ошибочную запись перегона")
         print("  3 - Выполнить расчет невязки и уравнивание высот")
         print("  4 - Показать полную уравненную ведомость хода (только после расчета)")
+        print("  5 - Редактировать данные существующего перегона")
         print("  0 - Вернуться в главное меню (или нажмите Enter)")
         
         choice = input("Выбор: ").strip()
@@ -438,8 +438,84 @@ def menu_height_traverse():
             else:
                 show_final_traverse_table()
                 input("\nПросмотр завершен. Нажмите Enter для возврата...")
+
+        elif choice == '5':
+            edit_height_traverse_leg()
         else:
             clear_screen()
+
+def edit_height_traverse_leg():
+    """Подменю точечного редактирования данных конкретного перегона высотного хода."""
+    if not state["measurements"]:
+        print("[ИНФО] Журнал измерений пуст.")
+        input("Нажмите Enter...")
+        return
+
+    clear_screen()
+    print("\n=== РЕДАКТИРОВАНИЕ ПЕРЕГОНА ВЫСОТНОГО ХОДА ===")
+    for i, m in enumerate(state["measurements"], 1):
+        f_rom = state["catalog_points"].get(str(m['from']), {}).get('roman', f"№{m['from']}")
+        t_rom = state["catalog_points"].get(str(m['to']), {}).get('roman', f"№{m['to']}")
+        print(f"  [{i}] {f_rom} -> {t_rom}")
+
+    try:
+        idx_inp = input("\nВведите номер строки перегона для редактирования (или Enter для отмены): ").strip()
+        if not idx_inp:
+            return
+        idx = int(idx_inp) - 1
+
+        if not (0 <= idx < len(state["measurements"])):
+            print("[ОШИБКА] Перегон с таким номером не найден.")
+            input("Нажмите Enter...")
+            return
+
+        m = state["measurements"][idx]
+        while True:
+            clear_screen()
+            f_rom = state["catalog_points"].get(str(m['from']), {}).get('roman', f"№{m['from']}")
+            t_rom = state["catalog_points"].get(str(m['to']), {}).get('roman', f"№{m['to']}")
+            print(f"\nРедактирование перегона: {f_rom} -> {t_rom}")
+            print(f"  1 - Отсчет по КЛ  (сейчас: {decimal_to_dms(m['kl'])})")
+            print(f"  2 - Отсчет по КП  (сейчас: {decimal_to_dms(m['kp'])})")
+            print(f"  3 - Расстояние D' (сейчас: {m['d_prime']} м)")
+            print(f"  4 - Высота прибора i (сейчас: {m['i']} м)")
+            print(f"  5 - Высота цели v (сейчас: {m['v']} м)")
+            print("  0 - Сохранить изменения и выйти")
+
+            sub_choice = input("Выберите параметр: ").strip()
+            if sub_choice == '0' or not sub_choice:
+                break
+            elif sub_choice == '1':
+                new_kl = parse_angle("Новый отсчет по КЛ:", state["instrument"], m['kl'])
+                if new_kl is not None:
+                    m['kl'] = new_kl
+            elif sub_choice == '2':
+                new_kp = parse_angle("Новый отсчет по КП:", state["instrument"], m['kp'])
+                if new_kp is not None:
+                    m['kp'] = new_kp
+            elif sub_choice == '3':
+                val = input(f"Новое расстояние D' (м) [{m['d_prime']}]: ").strip()
+                if val: m['d_prime'] = float(val)
+            elif sub_choice == '4':
+                val = input(f"Новая высота прибора i (м) [{m['i']}]: ").strip()
+                if val: m['i'] = float(val)
+            elif sub_choice == '5':
+                val = input(f"Новая высота цели v (м) [{m['v']}]: ").strip()
+                if val: m['v'] = float(val)
+
+            # Пересчет параметров перегона в реальном времени
+            m['mo'] = (m['kl'] + m['kp']) / 2.0
+            m['nu'] = m['kl'] - m['mo']
+            m['h_prime'] = round(m['d_prime'] * 0.5 * math.sin(2 * math.radians(m['nu'])), 2)
+            m['h_diff'] = round(m['h_prime'] + m['i'] - m['v'], 2)
+
+        state["traverse_is_calculated"] = False  # Сбрасываем флаг уравнивания из-за правок в журнале
+        save_state()
+        print("[УСПЕШНО] Данные перегона пересчитаны. Не забудьте заново запустить уравнивание хода!")
+        input("Нажмите Enter...")
+    except ValueError:
+        print("[ОШИБКА] Некорректный ввод данных.")
+        input("Нажмите Enter...")
 
 def calculate_traverse_results():
     """Вычисляет высотные невязки, сверяет с допуском и распределяет поправки пропорционально длинам плеч."""
@@ -625,11 +701,9 @@ def print_tacheometry_table(st_idx):
     log_and_print(header)
     log_and_print("-" * len(header))
     
-    # СТРОКА ОРИЕНТИРОВАНИЯ: Выводим её первой перед пикетами
+    # СТРОКА ОРИЕНТИРОВАНИЯ: Выводим её первой перед пикетами (СТРОГО ОДИН РАЗ)
     if ref_idx:
-        # Выносим вызов функции из f-строки во внешнюю переменную
         ang_str = decimal_to_dms(0.0)
-
         ori_row = (
             f"{pad(ref_roman, w_id)} | "
             f"{pad('Ориентир', w_note)} | "
@@ -652,11 +726,10 @@ def print_tacheometry_table(st_idx):
         alpha_piket = (alpha_st_ref + p['beta']) % 360.0
         p['alpha'] = alpha_piket  
         
-        # Предварительное форматирование строк, чтобы избежать вложенных f-строк
+        # Предварительное форматирование строк
         d_str = f"{p['d_prime']:.2f}"
         s_str = f"{p['s']:.2f}"
         v_str = f"{p.get('v', 0.0):.2f}"
-        hprime_str = f"{p.get('h_prime', 0.0):.2f}"
         hdiff_str = f"{p['h_diff']:.2f}"
         hpiket_str = f"{p['h_piket']:.{state['height_digits']}f}"
         x_str = f"{p['x']:.{state['coord_digits']}f}"
@@ -707,6 +780,8 @@ def menu_tacheometry():
         print("  1 - Начать / Продолжить съёмку на станции")
         print("  2 - Показать все посчитанные пикеты по станции")
         print("  3 - Удалить пикет по его глобальному номеру")
+        print("  4 - Редактировать данные существующего пикета")
+        print("  5 - Изменить текущий сквозной номер пикета")
         print("  0 - Вернуться в главное меню (или нажмите Enter)")
         
         choice = input("Выбор: ").strip()
@@ -736,7 +811,6 @@ def menu_tacheometry():
                 input("Нажмите Enter...")
                 continue
                 
-            # Если на этой станции уже снимали, берем сохраненный ориентир как подсказку
             suggested_ref = ""
             if st_idx in state["tacheometry_data"] and state["tacheometry_data"][st_idx]:
                 suggested_ref = state["tacheometry_data"][st_idx][0].get("ref_idx", "")
@@ -843,7 +917,7 @@ def menu_tacheometry():
                         "id": state['piket_global_counter'], "note": note, "d_prime": d_prime,
                         "beta": beta, "kl": kl, "nu": nu, "s": s_proj, "v": v_vis, "h_diff": h_diff, 
                         "h_prime": h_prime, "h_piket": h_piket, "alpha": alpha_piket, "x": piket_x, "y": piket_y,
-                        "ref_idx": ref_idx
+                        "ref_idx": ref_idx, "i_inst": i_inst, "assigned_mo": assigned_mo
                     }
                     
                     state["tacheometry_data"][st_idx].append(p_data)
@@ -904,8 +978,110 @@ def menu_tacheometry():
             except ValueError:
                 print("[ОШИБКА] Неверный формат идентификатора.")
             input("Нажмите Enter...")
+
+        elif choice == '4':
+            edit_tacheometry_piket()
+
+        elif choice == '5':
+            try:
+                print(f"\nТекущий сквозной номер пикета: {state['piket_global_counter']}")
+                new_counter = input("Введите новый номер для следующего пикета: ").strip()
+                if new_counter:
+                    state['piket_global_counter'] = int(new_counter)
+                    save_state()
+                    print(f"[УСПЕШНО] Счётчик сквозной нумерации переведён на №{state['piket_global_counter']}.")
+            except ValueError:
+                print("[ОШИБКА] Номер должен быть целым числом.")
+            input("Нажмите Enter...")
         else:
             clear_screen()
+
+def edit_tacheometry_piket():
+    """Подменю покомпонентного редактирования конкретного пикета с автопересчётом."""
+    if not state["tacheometry_data"]:
+        print("[ИНФО] Журнал пикетов пуст.")
+        input("Нажмите Enter...")
+        return
+
+    clear_screen()
+    print("\n=== РЕДАКТИРОВАНИЕ СУЩЕСТВУЮЩЕГО ПИКЕТА ===")
+    p_id_inp = input("Введите сквозной номер пикета для изменения: ").strip()
+    if not p_id_inp:
+        return
+
+    try:
+        p_id = int(p_id_inp)
+        target_piket = None
+        target_st = None
+        
+        for st, p_list in state["tacheometry_data"].items():
+            for p in p_list:
+                if p["id"] == p_id:
+                    target_piket = p
+                    target_st = st
+                    break
+            if target_piket: break
+
+        if not target_piket:
+            print("[ОШИБКА] Пикет с таким номером не найден.")
+            input("Нажмите Enter...")
+            return
+
+        p = target_piket
+        while True:
+            clear_screen()
+            print(f"\nРедактирование пикета №{p['id']} (Станция №{target_st}):")
+            print(f"  1 - Описание / абрис     (сейчас: '{p['note']}')")
+            print(f"  2 - Расстояние D'        (сейчас: {p['d_prime']} м)")
+            print(f"  3 - Горизонтальный угол β(сейчас: {decimal_to_dms(p['beta'])})")
+            print(f"  4 - Вертикальный угол КЛ (сейчас: {decimal_to_dms(p['kl'])})")
+            print(f"  5 - Высота визирования v (сейчас: {p.get('v', 0.0)} м)")
+            print("  0 - Сохранить изменения и выйти")
+
+            sub_choice = input("Выберите пункт для изменения: ").strip()
+            if sub_choice == '0' or not sub_choice:
+                break
+            elif sub_choice == '1':
+                p['note'] = input(f"Новое описание [{p['note']}]: ").strip() or p['note']
+            elif sub_choice == '2':
+                val = input(f"Новое расстояние D' (м) [{p['d_prime']}]: ").strip()
+                if val: p['d_prime'] = float(val)
+            elif sub_choice == '3':
+                new_beta = parse_angle("Новый угол β:", state["instrument"], p['beta'])
+                if new_beta is not None: m_angle = new_beta; p['beta'] = new_beta
+            elif sub_choice == '4':
+                new_kl = parse_angle("Новый угол КЛ:", state["instrument"], p['kl'])
+                if new_kl is not None: p['kl'] = new_kl
+            elif sub_choice == '5':
+                val = input(f"Новая высота рейки v (м) [{p.get('v', 0.0)}]: ").strip()
+                if val: p['v'] = float(val)
+
+            # Полный пересчёт геометрии пикета на основе обновлённых данных
+            st_x = state["catalog_points"][target_st]["x"]
+            st_y = state["catalog_points"][target_st]["y"]
+            st_h = state["catalog_points"][target_st]["h"]
+            
+            # Если высоты прибора или архивного МО не было в пикете, подтягиваем дефолты
+            i_inst = p.get('i_inst', 0.0)
+            assigned_mo = p.get('assigned_mo', 0.0)
+            
+            p['nu'] = p['kl'] - assigned_mo
+            p['s'] = round(p['d_prime'] * (math.cos(math.radians(p['nu'])) ** 2), 2)
+            p['h_prime'] = round(p['d_prime'] * 0.5 * math.sin(2 * math.radians(p['nu'])), 2)
+            p['h_diff'] = round(p['h_prime'] + i_inst - p.get('v', 0.0), 2)
+            p['h_piket'] = round(st_h + p['h_diff'], state["height_digits"])
+            
+            alpha_st_ref = get_station_orientation_angle(target_st, p['ref_idx'])
+            p['alpha'] = (alpha_st_ref + p['beta']) % 360.0
+            p['x'] = round(st_x + p['s'] * math.cos(math.radians(p['alpha'])), state["coord_digits"])
+            p['y'] = round(st_y + p['s'] * math.sin(math.radians(p['alpha'])), state["coord_digits"])
+
+        save_state()
+        print(f"[УСПЕШНО] Данные пикета №{p_id} полностью пересчитаны.")
+        input("Нажмите Enter...")
+    except ValueError:
+        print("[ОШИБКА] Некорректный ввод данных.")
+        input("Нажмите Enter...")
 
 
 # =====================================================================
