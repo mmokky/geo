@@ -2,7 +2,7 @@ name: Multiplatform Build (Windows & macOS)
 
 on:
   push:
-    branches: [ "main", "master" ] # Сборка запускается при пуше в эти ветки
+    branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
 
@@ -10,10 +10,10 @@ jobs:
   build:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     
     strategy:
       matrix:
-        # Запуск параллельных задач на разных виртуальных машинах
         include:
           - os: windows-latest
             artifact_name: survey-app-windows
@@ -22,33 +22,26 @@ jobs:
 
           - os: macos-latest
             artifact_name: survey-app-macos
-            output_path: dist/*.app
+            output_path: dist
             build_command: pyinstaller --windowed --onefile --icon=geo.icns main.py
 
     steps:
-    # 1. Скачиваем код репозитория на виртуальную машину
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # 2. Устанавливаем Python
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    # 3. Устанавливаем зависимости (PyInstaller встроен по умолчанию)
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pyinstaller
-        # Если вашему скрипту в будущем понадобятся библиотеки, пишите их сюда:
-        # pip install numpy ast
 
-    # 4. Запускаем сборку под конкретную ОС из матрицы
     - name: Build Executable
       run: ${{ matrix.build_command }}
 
-    # 5. Сохраняем полученный результат в артефакты GitHub
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
