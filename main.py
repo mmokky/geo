@@ -600,23 +600,54 @@ def print_tacheometry_table(st_idx):
     w_id = 6
     w_note = 15
     w_d = 7
-    w_ang = 11  # Запас под знаки "-", "°", "'", "\""
+    w_ang = 11  # Запас под знаки "-", "°", "'", '"'
     w_s = 6
     w_v = 5
     w_h = 7
     w_H = 7
     w_coord = 8
 
-    # Собираем шапку таблицы
+    # Собираем шапку таблицы (все бэкслэши убраны)
     header = (
-        f"{pad('№ Пик.', w_id)} | {pad('Описание', w_note)} | {pad('D\' (м)', w_d)} | "
-        f"{pad('β (Гориз)', w_ang)} | {pad('КЛ', w_ang)} | {pad('ν (с МО)', w_ang)} | "
-        f"{pad('S_зал (м)', w_s)} | {pad('v (м)', w_v)} | {pad('h\' (м)', w_h)} | "
-        f"{pad('h (м)', w_h)} | {pad('H (м)', w_H)} | {pad('Дир. угол α', w_ang)} | "
-        f"{pad('X (м)', w_coord)} | {pad('Y (м)', w_coord)}"
+        f"{pad('№ Пик.', w_id)} | "
+        f"{pad('Описание', w_note)} | "
+        f"{pad('D\' (м)', w_d)} | "
+        f"{pad('β (Гориз)', w_ang)} | "
+        f"{pad('КЛ', w_ang)} | "
+        f"{pad('ν (с МО)', w_ang)} | "
+        f"{pad('S_зал (м)', w_s)} | "
+        f"{pad('v (м)', w_v)} | "
+        f"{pad('h\' (м)', w_h)} | "
+        f"{pad('h (м)', w_h)} | "
+        f"{pad('H (м)', w_H)} | "
+        f"{pad('Дир. угол α', w_ang)} | "
+        f"{pad('X (м)', w_coord)} | "
+        f"{pad('Y (м)', w_coord)}"
     )
     log_and_print(header)
     log_and_print("-" * len(header))
+    
+    # СТРОКА ОРИЕНТИРОВАНИЯ: Выводим её первой перед пикетами
+    if ref_idx:
+        ang_str = decimal_to_dms(0.0)
+
+        ori_row = (
+            f"{pad(ref_roman, w_id)} | "
+            f"{pad('Ориентир', w_note)} | "
+            f"{pad('', w_d)} | "
+            f"{pad(ang_str, w_ang)} | "
+            f"{pad('', w_ang)} | "
+            f"{pad('', w_ang)} | "
+            f"{pad('', w_s)} | "
+            f"{pad('', w_v)} | "
+            f"{pad('', w_h)} | "
+            f"{pad('', w_h)} | "
+            f"{pad('', w_H)} | "
+            f"{pad('', w_ang)} | "
+            f"{pad('', w_coord)} | "
+            f"{pad('', w_coord)}"
+        )
+        log_and_print(ori_row)
     
     # СТРОКА ОРИЕНТИРОВАНИЯ: Выводим её первой перед пикетами
     if ref_idx:
