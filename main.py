@@ -627,27 +627,6 @@ def print_tacheometry_table(st_idx):
     
     # СТРОКА ОРИЕНТИРОВАНИЯ: Выводим её первой перед пикетами
     if ref_idx:
-        ang_str = decimal_to_dms(0.0)
-
-        ori_row = (
-            f"{pad(ref_roman, w_id)} | "
-            f"{pad('Ориентир', w_note)} | "
-            f"{pad('', w_d)} | "
-            f"{pad(ang_str, w_ang)} | "
-            f"{pad('', w_ang)} | "
-            f"{pad('', w_ang)} | "
-            f"{pad('', w_s)} | "
-            f"{pad('', w_v)} | "
-            f"{pad('', w_h)} | "
-            f"{pad('', w_H)} | "
-            f"{pad('', w_ang)} | "
-            f"{pad('', w_coord)} | "
-            f"{pad('', w_coord)}"
-        )
-        log_and_print(ori_row)
-    
-    # СТРОКА ОРИЕНТИРОВАНИЯ: Выводим её первой перед пикетами
-    if ref_idx:
         # Выносим вызов функции из f-строки во внешнюю переменную
         ang_str = decimal_to_dms(0.0)
 
