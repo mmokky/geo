@@ -28,7 +28,7 @@ def log_and_print(message):
     logger.info(message)
 
 def clear_screen():
-    """Очищает экран терминала в зависимости от текущей операционной системы."""
+    """Очищает экран terminal в зависимости от текущей операционной системы."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
@@ -591,7 +591,6 @@ def print_tacheometry_table(st_idx):
     # Внутренняя функция для жесткого выравнивания без сдвигов из-за UTF-8
     def pad(val, width):
         s = str(val)
-        # Находим реальное количество символов (коррекция для некоторых терминалов)
         actual_len = len(s)
         if actual_len >= width:
             return s[:width]
@@ -644,21 +643,31 @@ def print_tacheometry_table(st_idx):
         alpha_piket = (alpha_st_ref + p['beta']) % 360.0
         p['alpha'] = alpha_piket  
         
+        # Предварительное форматирование строк, чтобы избежать вложенных f-строк
+        d_str = f"{p['d_prime']:.2f}"
+        s_str = f"{p['s']:.2f}"
+        v_str = f"{p.get('v', 0.0):.2f}"
+        hprime_str = f"{p.get('h_prime', 0.0):.2f}"
+        hdiff_str = f"{p['h_diff']:.2f}"
+        hpiket_str = f"{p['h_piket']:.{state['height_digits']}f}"
+        x_str = f"{p['x']:.{state['coord_digits']}f}"
+        y_str = f"{p['y']:.{state['coord_digits']}f}"
+
         p_row = (
             f"{pad(p['id'], w_id)} | "
             f"{pad(p['note'], w_note)} | "
-            f"{pad(f'{p['d_prime']:.2f}', w_d)} | "
+            f"{pad(d_str, w_d)} | "
             f"{pad(decimal_to_dms(p['beta']), w_ang)} | "
             f"{pad(decimal_to_dms(p['kl']), w_ang)} | "
             f"{pad(decimal_to_dms(p['nu']), w_ang)} | "
-            f"{pad(f'{p['s']:.2f}', w_s)} | "
-            f"{pad(f'{p.get('v', 0.0):.2f}', w_v)} | "
-            f"{pad(f'{p.get('h_prime', 0.0):.2f}', w_h)} | "
-            f"{pad(f'{p['h_diff']:.2f}', w_h)} | "
-            f"{pad(f'{p['h_piket']:.{state['height_digits']}f}', w_H)} | "
+            f"{pad(s_str, w_s)} | "
+            f"{pad(v_str, w_v)} | "
+            f"{pad(hprime_str, w_h)} | "
+            f"{pad(hdiff_str, w_h)} | "
+            f"{pad(hpiket_str, w_H)} | "
             f"{pad(decimal_to_dms(alpha_piket), w_ang)} | "
-            f"{pad(f'{p['x']:.{state['coord_digits']}f}', w_coord)} | "
-            f"{pad(f'{p['y']:.{state['coord_digits']}f}', w_coord)}"
+            f"{pad(x_str, w_coord)} | "
+            f"{pad(y_str, w_coord)}"
         )
         log_and_print(p_row)
 
@@ -826,7 +835,7 @@ def menu_tacheometry():
                         "id": state['piket_global_counter'], "note": note, "d_prime": d_prime,
                         "beta": beta, "kl": kl, "nu": nu, "s": s_proj, "v": v_vis, "h_diff": h_diff, 
                         "h_prime": h_prime, "h_piket": h_piket, "alpha": alpha_piket, "x": piket_x, "y": piket_y,
-                        "ref_idx": ref_idx  # Явно сохраняем ID ориентира в структуру пикета
+                        "ref_idx": ref_idx
                     }
                     
                     state["tacheometry_data"][st_idx].append(p_data)
