@@ -2,9 +2,8 @@ name: Multiplatform Build (Windows & macOS)
 
 on:
   push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+    tags:
+      - 'v*' # Сборка и релиз будут запускаться только при создании тега версии (например, v1.1.0)
 
 jobs:
   build:
@@ -17,13 +16,25 @@ jobs:
         include:
           - os: windows-latest
             artifact_name: survey-app-windows
-            output_path: dist/*.exe
+            output_name: main.exe
+            output_path: dist/main.exe
             build_command: pyinstaller --onefile --icon=geo.ico main.py
+            # Команда расчета хэша для Windows (PowerShell)
+            hash_command: |
+              $hash = (Get-FileHash ./dist/main.exe -Algorithm SHA256).Hash
+              echo $hash > ./dist/checksum_windows.txt
+              echo "HASH=$hash" >> $env:GITHUB_ENV
 
           - os: macos-latest
             artifact_name: survey-app-macos
-            output_path: dist
+            output_name: main
+            output_path: dist/main
             build_command: pyinstaller --windowed --onefile --icon=geo.icns main.py
+            # Команда расчета хэша для macOS (Bash)
+            hash_command: |
+              hash=$(shasum -a 256 ./dist/main | awk '{print $1}')
+              echo $hash > ./dist/checksum_macos.txt
+              echo "HASH=$hash" >> $GITHUB_ENV
 
     steps:
     - name: Checkout code
@@ -42,8 +53,27 @@ jobs:
     - name: Build Executable
       run: ${{ matrix.build_command }}
 
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
+    - name: Generate SHA-256 Hash
+      run: ${{ matrix.hash_command }}
+
+    # Загружаем собранные бинарники и текстовые файлы с хэшами в GitHub Releases
+    - name: Create and Upload to GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
-        name: ${{ matrix.artifact_name }}
-        path: ${{ matrix.output_path }}
+        files: |
+          ${{ matrix.output_path }}
+          dist/checksum_*.txt
+        body: |
+          ## Официальные хэши безопасности сборки (${{ matrix.os }}):
+          
+          Релиз сгенерирован автоматически. Проверьте контрольную сумму скачанного файла, чтобы убедиться в его оригинальности.
+          
+          * **Файл:** `${{ matrix.output_name }}`
+          * **SHA-256 Хэш:** 
+```text
+          ${{ env.HASH }}
+          ```
+
+> ⚠️ **Примечание:** Из-за отсутствия коммерческой цифровой подписи операционные системы (Windows SmartScreen или macOS Gatekeeper) могут выдать предупреждение при первом запуске. Это нормально для независимых open-source проектов.
+env:
+GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
