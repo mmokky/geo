@@ -2,6 +2,7 @@ import math
 import os
 import re
 import json
+import ast
 import logging
 from datetime import datetime
 
@@ -229,7 +230,6 @@ def menu_catalog_points():
                 input("Нажмите Enter...")
         
         else:
-            # Если ввели несуществующий пункт — чистим экран и заходим на этот уровень заново
             clear_screen()
 
 
@@ -391,7 +391,6 @@ def menu_height_traverse():
             input("\nОбработка хода завершена. Нажмите Enter для возврата...")
             
         else:
-            # Несуществующий пункт подменю
             clear_screen()
 
 def calculate_traverse_results():
@@ -415,7 +414,8 @@ def calculate_traverse_results():
     sum_s, sum_h_abs = 0.0, 0.0
     
     for pair_str, data in legs.items():
-        p_eval = eval(pair_str)
+        # БЕЗОПАСНЫЙ ПАРСИНГ вместо eval()
+        p_eval = ast.literal_eval(pair_str)
         p_roman = state["catalog_points"][p_eval[0]]["roman"]
         o_roman = state["catalog_points"][p_eval[1]]["roman"]
         
@@ -432,6 +432,11 @@ def calculate_traverse_results():
         sum_s += s_dist
         sum_h_abs += h_sr
         final_legs.append({"pair": p_eval, "name": f"{p_roman} -> {o_roman}", "h_sr": h_sr, "s": s_dist})
+
+    # ФИКС: Защита от пустого массива плеч хода во избежание вечного цикла при расчете поправок
+    if not final_legs:
+        log_and_print("[ОШИБКА] Не удалось сформировать плечи хода из журнала измерений.")
+        return
 
     known_heights = {int(k): v["h"] for k, v in state["catalog_points"].items() if v["h"] is not None}
     if len(known_heights) < 2:
@@ -509,7 +514,8 @@ def menu_tacheometry():
             
         print("\nДействия:")
         print("  1 - Начать / Продолжить съёмку на станции")
-        print("  2 - Удалить пикет по его глобальному номеру")
+        print("  2 - Показать все посчитанные пикеты по станции")
+        print("  3 - Удалить пикет по его глобальному номеру")
         print("  0 - Вернуться в главное меню (или нажмите Enter)")
         
         choice = input("Выбор: ").strip()
@@ -528,7 +534,10 @@ def menu_tacheometry():
                 input("Нажмите Enter...")
                 continue
             
+            st_x = state["catalog_points"][st_idx]["x"]
+            st_y = state["catalog_points"][st_idx]["y"]
             st_h = state["catalog_points"][st_idx]["h"]
+            
             if st_h is None:
                 print("Ошибка! У съемочной станции отсутствует уравненная высота H.")
                 print("Сначала внесите измерения и уравняйте Высотного Ход (Пункт 2).")
@@ -543,6 +552,24 @@ def menu_tacheometry():
                 print("\n[ОШИБКА] Точка ориентирования не может совпадать со станцией стояния прибора!")
                 input("Нажмите Enter для повторного ввода...")
                 continue
+
+            if ref_idx not in state["catalog_points"]:
+                print("Точка ориентирования не найдена в каталоге координат!")
+                input("Нажмите Enter...")
+                continue
+
+            ref_x = state["catalog_points"][ref_idx]["x"]
+            ref_y = state["catalog_points"][ref_idx]["y"]
+
+            # Вычисление исходного дирекционного угла направления на точку ориентирования (ОГЗ)
+            dx = ref_x - st_x
+            dy = ref_y - st_y
+            if dx == 0 and dy == 0:
+                alpha_st_ref = 0.0
+            else:
+                alpha_st_ref = math.degrees(math.atan2(dy, dx))
+                if alpha_st_ref < 0:
+                    alpha_st_ref += 360.0
             
             assigned_mo = 0.0
             found_mo = False
@@ -577,7 +604,7 @@ def menu_tacheometry():
             if st_idx not in state["tacheometry_data"]:
                 state["tacheometry_data"][st_idx] = []
                 
-            print("\nВвод пикетов. Для прекращения съёмки оставьте поле примечания пустым.")
+            print("\nВвод пикетов. Для прекращения съёмки оставьте поле описания пустым.")
             while True:
                 print(f"\n--- Пикет №{state['piket_global_counter']} ---")
                 note = input("Описание / Абрис пикета (или Enter для фиксации станции): ").strip()
@@ -606,34 +633,68 @@ def menu_tacheometry():
                     v_vis = float(v_v_inp) if v_v_inp else last_v
                     last_v = v_vis
                     
+                    # Расчет углов наведения и превышений
                     nu = kl - assigned_mo
-                    s_proj = round(d_prime * (math.cos(math.radians(nu)) ** 2), 1)
+                    s_proj = round(d_prime * (math.cos(math.radians(nu)) ** 2), 2)
                     h_prime = round(d_prime * 0.5 * math.sin(2 * math.radians(nu)), 2)
                     h_diff = round(h_prime + i_inst - v_vis, 2)
                     h_piket = round(st_h + h_diff, state["height_digits"])
                     
+                    # Вычисление дирекционного угла на пикет и плоских координат X, Y
+                    alpha_piket = (alpha_st_ref + beta) % 360.0
+                    piket_x = round(st_x + s_proj * math.cos(math.radians(alpha_piket)), state["coord_digits"])
+                    piket_y = round(st_y + s_proj * math.sin(math.radians(alpha_piket)), state["coord_digits"])
+                    
                     p_data = {
                         "id": state['piket_global_counter'], "note": note, "d_prime": d_prime,
-                        "beta": beta, "kl": kl, "nu": nu, "s": s_proj, "h_diff": h_diff, "h_piket": h_piket
+                        "beta": beta, "kl": kl, "nu": nu, "s": s_proj, "h_diff": h_diff, "h_piket": h_piket,
+                        "x": piket_x, "y": piket_y
                     }
                     
                     state["tacheometry_data"][st_idx].append(p_data)
                     state['piket_global_counter'] += 1
                     save_state()
                     
-                    log_and_print(f"   [ОК] Пикет {p_data['id']}: S_заложение={s_proj} м, превышение h={h_diff} м, Высота H={h_piket} м")
+                    # ИЗМЕНЕНИЕ: Развернутый вывод всех посчитанных геодезических данных пикета прямо в процессе съемки
+                    print("-" * 55)
+                    log_and_print(f"   [ОК] Результаты расчета Пикета №{p_data['id']}:")
+                    log_and_print(f"   Координаты:  X = {piket_x:.{state['coord_digits']}f} м | Y = {piket_y:.{state['coord_digits']}f} м")
+                    log_and_print(f"   Высота:      H = {h_piket:.{state['height_digits']}f} м")
+                    log_and_print(f"   Параметры:   S_зал = {s_proj:.2f} м | h_прев = {h_diff:+.2f} м | α = {decimal_to_dms(alpha_piket)}")
+                    print("-" * 55)
                 except ValueError:
                     print("Ошибка парсинга чисел. Пикет отклонён. Забейте данные заново.")
             
             st_roman = state["catalog_points"][st_idx]["roman"]
             log_and_print(f"\n=== ТАХЕОМЕТРИЧЕСКИЙ ЖУРНАЛ: СТАНЦИЯ {st_roman} ===")
-            print(f"{'№ Пик.':<6} | {'Описание':<12} | {'β (Гориз)':<12} | {'ν (Вертик)':<12} | {'S (м)':<6} | {'h (м)':<6} | {'H (м)':<12}")
-            print("-" * 75)
+            print(f"{'№ Пик.':<6} | {'Описание':<12} | {'S_зал (м)':<9} | {'X (м)':<10} | {'Y (м)':<10} | {'H (м)':<10}")
+            print("-" * 65)
             for p in state["tacheometry_data"][st_idx]:
-                print(f"{p['id']:<6} | {p['note']:<12} | {decimal_to_dms(p['beta']):<12} | {decimal_to_dms(p['nu']):<12} | {p['s']:<6.1f} | {p['h_diff']:<6.2f} | {p['h_piket']:<12.2f}")
+                print(f"{p['id']:<6} | {p['note']:<12} | {p['s']:<9.2f} | {p['x']:<10.{state['coord_digits']}f} | {p['y']:<10.{state['coord_digits']}f} | {p['h_piket']:<10.{state['height_digits']}f}")
             input("\nНажмите Enter для продолжения...")
 
         elif choice == '2':
+            # ИЗМЕНЕНИЕ: Новый пункт подменю для просмотра ведомости всех пикетов по выбранной станции
+            if not state["tacheometry_data"]:
+                print("В базе проекта еще нет отснятых пикетов.")
+                input("Нажмите Enter...")
+                continue
+                
+            st_idx = input("Введите арабский номер станции для просмотра пикетов: ").strip()
+            if not st_idx or st_idx not in state["tacheometry_data"]:
+                print("На этой станции съёмка не производилась или станция не существует.")
+                input("Нажмите Enter...")
+                continue
+                
+            st_roman = state["catalog_points"].get(st_idx, {}).get('roman', f"№{st_idx}")
+            log_and_print(f"\n=== ВСЕ ПОСЧИТАННЫЕ ПИКЕТЫ НА СТАНЦИИ {st_roman} ===")
+            print(f"{'№ Пик.':<6} | {'Описание':<12} | {'S_зал (м)':<9} | {'X (м)':<10} | {'Y (м)':<10} | {'H (м)':<10}")
+            print("-" * 65)
+            for p in state["tacheometry_data"][st_idx]:
+                print(f"{p['id']:<6} | {p['note']:<12} | {p['s']:<9.2f} | {p['x']:<10.{state['coord_digits']}f} | {p['y']:<10.{state['coord_digits']}f} | {p['h_piket']:<10.{state['height_digits']}f}")
+            input("\nПросмотр завершен. Нажмите Enter...")
+
+        elif choice == '3':
             if not state["tacheometry_data"]:
                 print("Журнал пикетов абсолютно пуст.")
                 input("Нажмите Enter...")
@@ -661,7 +722,6 @@ def menu_tacheometry():
             input("Нажмите Enter...")
             
         else:
-            # Несуществующий пункт подменю
             clear_screen()
 
 
@@ -699,6 +759,7 @@ def select_project():
         
         if choice == '0':
             print("Завершение сессии. До встречи в полях!")
+            logging.shutdown()
             exit()
             
         elif choice == 'n':
@@ -759,7 +820,7 @@ def main():
         print("="*50)
         print("1. Каталог опорных точек (Ввод / Просмотр / Изменение)")
         print("2. Высотный ход (Полевой журнал, невязка, уравнивание)")
-        print("3. Журнал тахеометрической съемки (Пикеты)")
+        print("3. Журнал тахеометрической съемки (Пикеты + Плановые координаты)")
         print(f"4. Сменить модель теодолита (сейчас: {state['instrument']})")
         print("8. Сменить активный объект / Открыть менеджер проектов")
         print("9. Полностью очистить этот проект (Жёсткий сброс всех таблиц)")
@@ -820,8 +881,10 @@ def main():
                 input("Нажмите Enter...")
             clear_screen()
         else:
-            # Если ввели левое число в ГЛАВНОМ меню — просто чистим экран и выводим меню заново сверху
             clear_screen()
+
+    # ФИКС: Гарантируем закрытие файловых хендлеров при выходе через "0"
+    logging.shutdown()
 
 if __name__ == '__main__':
     main()
