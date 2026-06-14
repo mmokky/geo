@@ -18,14 +18,12 @@ jobs:
           - os: windows-latest
             artifact_name: survey-app-windows
             output_path: dist/*.exe
-            build_command: pyinstaller --onefile main.py
-            # Если есть иконка, используйте: pyinstaller --onefile --icon=icon.ico main.py
+            build_command: pyinstaller --onefile --icon=geo.ico main.py
 
           - os: macos-latest
             artifact_name: survey-app-macos
             output_path: dist/*.app
-            build_command: pyinstaller --windowed --onefile main.py
-            # Если есть иконка, используйте: pyinstaller --windowed --onefile --icon=icon.icns main.py
+            build_command: pyinstaller --windowed --onefile --icon=geo.icns main.py
 
     steps:
     # 1. Скачиваем код репозитория на виртуальную машину
