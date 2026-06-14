@@ -20,7 +20,7 @@ file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(mes
 logger.addHandler(file_handler)
 
 console_handler = logging.StreamHandler()
-console_handler.setFormatter(logging.Formatter('%message)s'))
+console_handler.setFormatter(logging.Formatter('%(message)s'))
 logger.addHandler(console_handler)
 
 def log_and_print(message):
