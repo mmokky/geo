@@ -1,5 +1,6 @@
 name: Multiplatform Build (Windows & macOS)
 
+
 on:
   push:
     branches: [ "main", "master" ] # Сборка запускается при пуше в эти ветки
